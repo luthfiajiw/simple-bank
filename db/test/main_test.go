@@ -7,7 +7,7 @@ import (
 	db "simplebank/db/sqlc"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -16,15 +16,23 @@ const (
 )
 
 var testQueries *db.Queries
+var testPool *pgxpool.Pool
 
-func TestMain(m *testing.M)  {
-	conn, err := pgx.Connect(context.Background(), dbSource)
-	if err != nil {
-		log.Fatal("can't connect to db:", err)	
+func TestMain(m *testing.M) {
+	config, errConf := pgxpool.ParseConfig(dbSource)
+	if errConf != nil {
+		log.Fatalf("unable to parse config: %v:", errConf)
 	}
-	defer conn.Close(context.Background())
 
-	testQueries = db.New(conn)
+	var err error
+
+	testPool, err = pgxpool.NewWithConfig(context.Background(), config)
+	if err != nil {
+		log.Fatal("can't connect to db:", err)
+	}
+	defer testPool.Close()
+
+	testQueries = db.New(testPool)
 
 	os.Exit(m.Run())
 }

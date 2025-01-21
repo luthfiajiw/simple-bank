@@ -10,13 +10,13 @@ import (
 
 func createTestAcccount(t *testing.T) db.Account {
 	arg := db.CreateAccountParams{
-		Owner: "luthfi",
-		Balance: 0,
+		Owner:    "luthfi",
+		Balance:  100,
 		Currency: "IDR",
 	}
 
 	account, err := testQueries.CreateAccount(context.Background(), arg)
-	
+
 	require.NoError(t, err)
 	require.NotEmpty(t, account)
 
@@ -30,11 +30,11 @@ func createTestAcccount(t *testing.T) db.Account {
 	return account
 }
 
-func TestCreateAccount(t *testing.T)  {
+func TestCreateAccount(t *testing.T) {
 	createTestAcccount(t)
 }
 
-func TestGetAccount(t *testing.T)  {
+func TestGetAccount(t *testing.T) {
 	createdAccount := createTestAcccount(t)
 
 	account, err := testQueries.GetAccount(context.Background(), createdAccount.ID)
@@ -47,4 +47,3 @@ func TestGetAccount(t *testing.T)  {
 	require.Equal(t, createdAccount.Balance, account.Balance)
 	require.Equal(t, createdAccount.Currency, account.Currency)
 }
-
