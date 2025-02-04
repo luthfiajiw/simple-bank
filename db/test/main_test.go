@@ -5,20 +5,22 @@ import (
 	"log"
 	"os"
 	db "simplebank/db/sqlc"
+	"simplebank/utils"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-)
-
-const (
-	dbSource = "postgresql://root:secret@localhost:5432/simple_bank?sslmode=disable"
 )
 
 var testQueries *db.Queries
 var testPool *pgxpool.Pool
 
 func TestMain(m *testing.M) {
-	config, errConf := pgxpool.ParseConfig(dbSource)
+	env, errEnv := utils.LoadConfig("../..")
+	if errEnv != nil {
+		log.Fatalf("unable to load env config: %v:", errEnv)
+	}
+
+	config, errConf := pgxpool.ParseConfig(env.DBSource)
 	if errConf != nil {
 		log.Fatalf("unable to parse config: %v:", errConf)
 	}
