@@ -35,6 +35,6 @@ func (server *Server) Start(address string) error {
 	return server.Router.Run(address)
 }
 
-func errorResponse(err error) gin.H {
-	return gin.H{"error": err.Error()}
+func errorResponse(err string) gin.H {
+	return gin.H{"error": err}
 }

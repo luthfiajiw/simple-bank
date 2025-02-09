@@ -19,7 +19,7 @@ type transferRequest struct {
 func (server *Server) createTransfer(ctx *gin.Context) {
 	var req transferRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		ctx.JSON(http.StatusBadRequest, errorResponse(err.Error()))
 		return
 	}
 
@@ -38,7 +38,7 @@ func (server *Server) createTransfer(ctx *gin.Context) {
 
 	result, err := server.store.TransferTx(ctx, arg)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err.Error()))
 		return
 	}
 
@@ -49,17 +49,17 @@ func (server *Server) isCurrencyValid(ctx *gin.Context, accountID int64, currenc
 	account, err := server.store.GetAccount(ctx, accountID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			ctx.JSON(http.StatusNotFound, errorResponse(err))
+			ctx.JSON(http.StatusNotFound, errorResponse(err.Error()))
 			return false
 		}
 
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err.Error()))
 		return false
 	}
 
 	if account.Currency != currency {
 		err := fmt.Errorf("account %d has different currency", accountID)
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		ctx.JSON(http.StatusBadRequest, errorResponse(err.Error()))
 		return false
 	}
 

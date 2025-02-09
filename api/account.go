@@ -1,11 +1,13 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	db "simplebank/db/sqlc"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type createAccountReq struct {
@@ -17,19 +19,30 @@ func (server *Server) createAccount(ctx *gin.Context) {
 	var req createAccountReq
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		ctx.JSON(http.StatusBadRequest, errorResponse(err.Error()))
 		return
 	}
 
 	arg := db.CreateAccountParams{
 		Owner:    req.Owner,
-		Currency: "IDR",
+		Currency: req.Currency,
 		Balance:  0,
 	}
 
 	account, err := server.store.CreateAccount(ctx, arg)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		if pgErr, ok := err.(*pgconn.PgError); ok {
+			switch pgErr.ConstraintName {
+			case "owner_currency_key":
+				ctx.JSON(http.StatusForbidden, errorResponse("one owner can only have 2 accounts with different currencies"))
+				return
+			case "accounts_owner_fkey":
+				ctx.JSON(http.StatusForbidden, errorResponse(fmt.Sprintf("owner with username %v was not found", req.Owner)))
+				return
+			}
+		}
+
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err.Error()))
 		return
 	}
 
@@ -45,7 +58,7 @@ func (server *Server) listAccounts(ctx *gin.Context) {
 	var req listAccountReq
 
 	if err := ctx.ShouldBindQuery(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		ctx.JSON(http.StatusBadRequest, errorResponse(err.Error()))
 		return
 	}
 
@@ -56,7 +69,7 @@ func (server *Server) listAccounts(ctx *gin.Context) {
 
 	accounts, err := server.store.ListAccounts(ctx, arg)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err.Error()))
 		return
 	}
 
@@ -71,18 +84,18 @@ func (server *Server) getAccount(ctx *gin.Context) {
 	var req getAccountReq
 
 	if err := ctx.ShouldBindUri(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		ctx.JSON(http.StatusBadRequest, errorResponse(err.Error()))
 		return
 	}
 
 	account, err := server.store.GetAccount(ctx, req.ID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			ctx.JSON(http.StatusNotFound, errorResponse(err))
+			ctx.JSON(http.StatusNotFound, errorResponse(err.Error()))
 			return
 		}
 
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err.Error()))
 		return
 	}
 
