@@ -33,8 +33,8 @@ func (server *Server) createAccount(ctx *gin.Context) {
 	if err != nil {
 		if pgErr, ok := err.(*pgconn.PgError); ok {
 			switch pgErr.ConstraintName {
-			case "owner_currency_key":
-				ctx.JSON(http.StatusForbidden, errorResponse("one owner can only have 2 accounts with different currencies"))
+			case "users":
+				ctx.JSON(http.StatusForbidden, errorResponse(fmt.Sprintf("this owner already has an account with %v currency", req.Currency)))
 				return
 			case "accounts_owner_fkey":
 				ctx.JSON(http.StatusForbidden, errorResponse(fmt.Sprintf("owner with username %v was not found", req.Owner)))
@@ -46,7 +46,7 @@ func (server *Server) createAccount(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, account)
+	ctx.JSON(http.StatusCreated, account)
 }
 
 type listAccountReq struct {
