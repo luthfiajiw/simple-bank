@@ -8,13 +8,21 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type createUserReq struct {
-	Username string `json:"username" binding:"required,alphanum,min=6"`
+	Username string `json:"username" binding:"required,alphanum,min=3"`
 	Password string `json:"password" binding:"required,min=6"`
 	Fullname string `json:"fullname" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`
+}
+
+type createUserRes struct {
+	Username  string             `json:"username"`
+	Fullname  string             `json:"fullname"`
+	Email     string             `json:"email"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 func (server *Server) createUser(ctx *gin.Context) {
@@ -58,5 +66,12 @@ func (server *Server) createUser(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, user)
+	res := createUserRes{
+		Username:  user.Username,
+		Fullname:  user.Fullname,
+		Email:     user.Email,
+		CreatedAt: user.CreatedAt,
+	}
+
+	ctx.JSON(http.StatusCreated, res)
 }
