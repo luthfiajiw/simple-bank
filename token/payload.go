@@ -28,13 +28,13 @@ func (payload *Payload) Validate() error {
 }
 
 func NewPayload(username string, duration time.Duration) (*Payload, error) {
-	token, err := uuid.NewRandom()
+	id, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
 	}
 
 	payload := &Payload{
-		ID:        token,
+		ID:        id,
 		Username:  username,
 		IssuedAt:  time.Now(),
 		ExpiredAt: time.Now().Add(duration),

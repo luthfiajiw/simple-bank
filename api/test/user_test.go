@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"simplebank/api"
 	mockdb "simplebank/db/mock"
 	db "simplebank/db/sqlc"
 	"simplebank/utils"
@@ -117,7 +116,7 @@ func TestCreateUser(t *testing.T) {
 			// STUBS
 			tc.buildStubs(store)
 
-			server := api.NewServer(store)
+			server := newTestServer(t, store)
 			recorder := httptest.NewRecorder()
 
 			data, err := json.Marshal(tc.body)

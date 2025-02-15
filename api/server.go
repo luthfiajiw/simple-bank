@@ -2,6 +2,8 @@ package api
 
 import (
 	db "simplebank/db/sqlc"
+	"simplebank/token"
+	"simplebank/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -9,12 +11,23 @@ import (
 )
 
 type Server struct {
-	store  db.Store
-	Router *gin.Engine
+	store      db.Store
+	config     utils.Config
+	tokenMaker token.Maker
+	Router     *gin.Engine
 }
 
-func NewServer(store db.Store) *Server {
-	server := &Server{store: store}
+func NewServer(config utils.Config, store db.Store) (*Server, error) {
+	tokenMaker, err := token.NewPasetoMaker(config.SymetricKey)
+	if err != nil {
+		return nil, err
+	}
+
+	server := &Server{
+		store:      store,
+		config:     config,
+		tokenMaker: tokenMaker,
+	}
 	router := gin.Default()
 
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
@@ -22,6 +35,7 @@ func NewServer(store db.Store) *Server {
 	}
 
 	router.POST("/api/v1/users", server.createUser)
+	router.POST("/api/v1/users/login", server.loginUser)
 
 	router.POST("/api/v1/accounts", server.createAccount)
 	router.GET("/api/v1/accounts", server.listAccounts)
@@ -31,7 +45,7 @@ func NewServer(store db.Store) *Server {
 
 	server.Router = router
 
-	return server
+	return server, nil
 }
 
 func (server *Server) Start(address string) error {

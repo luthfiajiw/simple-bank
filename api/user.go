@@ -7,9 +7,15 @@ import (
 	"simplebank/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type loginUserReq struct {
+	Username string `json:"username" binding:"required,alphanum,min=3"`
+	Password string `json:"password" binding:"required,min=6"`
+}
 
 type createUserReq struct {
 	Username string `json:"username" binding:"required,alphanum,min=3"`
@@ -18,11 +24,62 @@ type createUserReq struct {
 	Email    string `json:"email" binding:"required,email"`
 }
 
-type createUserRes struct {
+type loginUserRes struct {
+	AccessToken string  `json:"access_token"`
+	User        userRes `json:"user"`
+}
+
+type userRes struct {
 	Username  string             `json:"username"`
 	Fullname  string             `json:"fullname"`
 	Email     string             `json:"email"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+func (server *Server) loginUser(ctx *gin.Context) {
+	var req loginUserReq
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, errorResponse(err.Error()))
+	}
+
+	user, err := server.store.GetUser(ctx, req.Username)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			ctx.JSON(http.StatusNotFound, errorResponse(fmt.Sprintf("user %v not found", req.Username)))
+			return
+		}
+
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err.Error()))
+		return
+	}
+
+	err = utils.CheckPassword(req.Password, user.HashedPassword)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, errorResponse("password is invalid"))
+		return
+	}
+
+	accessToken, err := server.tokenMaker.CreateToken(
+		user.Username,
+		server.config.AccessTokenDuration,
+	)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err.Error()))
+		return
+	}
+
+	res := loginUserRes{
+		AccessToken: accessToken,
+		User: userRes{
+			Username:  user.Username,
+			Fullname:  user.Fullname,
+			Email:     user.Email,
+			CreatedAt: user.CreatedAt,
+		},
+	}
+
+	ctx.JSON(http.StatusOK, res)
 }
 
 func (server *Server) createUser(ctx *gin.Context) {
@@ -66,7 +123,7 @@ func (server *Server) createUser(ctx *gin.Context) {
 		return
 	}
 
-	res := createUserRes{
+	res := userRes{
 		Username:  user.Username,
 		Fullname:  user.Fullname,
 		Email:     user.Email,

@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"simplebank/api"
 	mockdb "simplebank/db/mock"
 	db "simplebank/db/sqlc"
 	"testing"
@@ -73,7 +72,7 @@ func TestGetAccountAPI(t *testing.T) {
 			// Stubs
 			tc.buildStubs(store)
 
-			server := api.NewServer(store)
+			server := newTestServer(t, store)
 			recorder := httptest.NewRecorder()
 
 			url := fmt.Sprintf("/api/v1/accounts/%d", tc.accountID)
