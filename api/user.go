@@ -60,7 +60,7 @@ func (server *Server) loginUser(ctx *gin.Context) {
 		return
 	}
 
-	accessToken, err := server.tokenMaker.CreateToken(
+	accessToken, err := server.TokenMaker.CreateToken(
 		user.Username,
 		server.config.AccessTokenDuration,
 	)
