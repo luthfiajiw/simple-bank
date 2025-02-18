@@ -6,9 +6,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"simplebank/api"
 	mockdb "simplebank/db/mock"
 	db "simplebank/db/sqlc"
+	"simplebank/token"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/jackc/pgx/v5"
@@ -21,12 +24,16 @@ func TestGetAccountAPI(t *testing.T) {
 	testCases := []struct {
 		name          string
 		accountID     int64
+		setupAuth     func(t *testing.T, req *http.Request, tokenMaker token.Maker)
 		buildStubs    func(store *mockdb.MockStore)
 		checkResponse func(t *testing.T, recorder *httptest.ResponseRecorder)
 	}{
 		{
 			name:      "OK",
 			accountID: account.ID,
+			setupAuth: func(t *testing.T, req *http.Request, tokenMaker token.Maker) {
+				addAuth(t, req, tokenMaker, api.AuthorizationTypeBearer, "test", time.Minute)
+			},
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
 					GetAccount(gomock.Any(), gomock.Eq(account.ID)).
@@ -48,6 +55,9 @@ func TestGetAccountAPI(t *testing.T) {
 		{
 			name:      "NotFound",
 			accountID: account.ID,
+			setupAuth: func(t *testing.T, req *http.Request, tokenMaker token.Maker) {
+				addAuth(t, req, tokenMaker, api.AuthorizationTypeBearer, "test", time.Minute)
+			},
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
 					GetAccount(gomock.Any(), gomock.Eq(account.ID)).
@@ -78,6 +88,8 @@ func TestGetAccountAPI(t *testing.T) {
 			url := fmt.Sprintf("/api/v1/accounts/%d", tc.accountID)
 			req, err := http.NewRequest(http.MethodGet, url, nil)
 			require.NoError(t, err)
+
+			tc.setupAuth(t, req, server.TokenMaker)
 
 			server.Router.ServeHTTP(recorder, req)
 			// Check response

@@ -1,9 +1,11 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	db "simplebank/db/sqlc"
+	"simplebank/token"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
@@ -11,7 +13,6 @@ import (
 )
 
 type createAccountReq struct {
-	Owner    string `json:"owner" binding:"required"`
 	Currency string `json:"currency" binding:"required,currency"`
 }
 
@@ -23,8 +24,10 @@ func (server *Server) createAccount(ctx *gin.Context) {
 		return
 	}
 
+	authPayload := ctx.MustGet(AuthorizationPayloadKey).(*token.Payload)
+
 	arg := db.CreateAccountParams{
-		Owner:    req.Owner,
+		Owner:    authPayload.Username,
 		Currency: req.Currency,
 		Balance:  0,
 	}
@@ -37,7 +40,7 @@ func (server *Server) createAccount(ctx *gin.Context) {
 				ctx.JSON(http.StatusForbidden, errorResponse(fmt.Sprintf("this owner already has an account with %v currency", req.Currency)))
 				return
 			case "accounts_owner_fkey":
-				ctx.JSON(http.StatusForbidden, errorResponse(fmt.Sprintf("owner with username %v was not found", req.Owner)))
+				ctx.JSON(http.StatusForbidden, errorResponse(fmt.Sprintf("owner with username %v was not found", arg.Owner)))
 				return
 			}
 		}
@@ -62,7 +65,10 @@ func (server *Server) listAccounts(ctx *gin.Context) {
 		return
 	}
 
+	authPayload := ctx.MustGet(AuthorizationPayloadKey).(*token.Payload)
+
 	arg := db.ListAccountsParams{
+		Owner:  authPayload.Username,
 		Limit:  req.PageSize,
 		Offset: (req.PageID - 1) * req.PageSize,
 	}
@@ -88,6 +94,8 @@ func (server *Server) getAccount(ctx *gin.Context) {
 		return
 	}
 
+	authPayload := ctx.MustGet(AuthorizationPayloadKey).(*token.Payload)
+
 	account, err := server.store.GetAccount(ctx, req.ID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -96,6 +104,12 @@ func (server *Server) getAccount(ctx *gin.Context) {
 		}
 
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err.Error()))
+		return
+	}
+
+	if account.Owner != authPayload.Username {
+		err = errors.New("account doesn't belong to the authenticated user")
+		ctx.JSON(http.StatusUnauthorized, errorResponse(err.Error()))
 		return
 	}
 

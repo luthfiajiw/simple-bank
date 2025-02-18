@@ -1,9 +1,11 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	db "simplebank/db/sqlc"
+	"simplebank/token"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
@@ -23,10 +25,21 @@ func (server *Server) createTransfer(ctx *gin.Context) {
 		return
 	}
 
-	if !server.isCurrencyValid(ctx, req.FromIDAccounts, req.Currency) {
+	authPayload := ctx.MustGet(AuthorizationPayloadKey).(*token.Payload)
+
+	fromAccount, isValid := server.isCurrencyValid(ctx, req.FromIDAccounts, req.Currency)
+	if !isValid {
 		return
 	}
-	if !server.isCurrencyValid(ctx, req.ToIDAccounts, req.Currency) {
+
+	if authPayload.Username != fromAccount.Owner {
+		err := errors.New("from account doesn't belong to the authenticated user")
+		ctx.JSON(http.StatusUnauthorized, errorResponse(err.Error()))
+		return
+	}
+
+	_, isValid = server.isCurrencyValid(ctx, req.ToIDAccounts, req.Currency)
+	if !isValid {
 		return
 	}
 
@@ -45,23 +58,23 @@ func (server *Server) createTransfer(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, result)
 }
 
-func (server *Server) isCurrencyValid(ctx *gin.Context, accountID int64, currency string) bool {
+func (server *Server) isCurrencyValid(ctx *gin.Context, accountID int64, currency string) (db.Account, bool) {
 	account, err := server.store.GetAccount(ctx, accountID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, errorResponse(err.Error()))
-			return false
+			return account, false
 		}
 
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err.Error()))
-		return false
+		return account, false
 	}
 
 	if account.Currency != currency {
 		err := fmt.Errorf("account %d has different currency", accountID)
 		ctx.JSON(http.StatusBadRequest, errorResponse(err.Error()))
-		return false
+		return account, false
 	}
 
-	return true
+	return account, true
 }
