@@ -5,6 +5,7 @@ import (
 	"net/http"
 	db "simplebank/db/sqlc"
 	"simplebank/utils"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
@@ -25,8 +26,12 @@ type createUserReq struct {
 }
 
 type loginUserRes struct {
-	AccessToken string  `json:"access_token"`
-	User        userRes `json:"user"`
+	SessionID             string    `json:"session_id"`
+	AccessToken           string    `json:"access_token"`
+	AccessTokenExpiresAt  time.Time `json:"access_token_expires_at"`
+	RefreshToken          string    `json:"refresh_token"`
+	RefreshTokenExpiresAt time.Time `json:"refresh_token_expires_at"`
+	User                  userRes   `json:"user"`
 }
 
 type userRes struct {
@@ -60,7 +65,7 @@ func (server *Server) loginUser(ctx *gin.Context) {
 		return
 	}
 
-	accessToken, err := server.TokenMaker.CreateToken(
+	accessToken, accessPayload, err := server.TokenMaker.CreateToken(
 		user.Username,
 		server.config.AccessTokenDuration,
 	)
@@ -69,8 +74,35 @@ func (server *Server) loginUser(ctx *gin.Context) {
 		return
 	}
 
+	refreshToken, refreshPayload, err := server.TokenMaker.CreateToken(
+		user.Username,
+		server.config.RefreshTokenDuration,
+	)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err.Error()))
+		return
+	}
+
+	session, err := server.store.CreateSession(ctx, db.CreateSessionParams{
+		ID:           pgtype.UUID{Bytes: [16]byte(refreshPayload.ID), Valid: true},
+		Username:     user.Username,
+		RefreshToken: refreshToken,
+		UserAgent:    ctx.Request.UserAgent(),
+		ClientIp:     ctx.ClientIP(),
+		IsBlocked:    false,
+		ExpiresAt:    pgtype.Timestamptz{Time: refreshPayload.ExpiredAt, Valid: true},
+	})
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err.Error()))
+		return
+	}
+
 	res := loginUserRes{
-		AccessToken: accessToken,
+		SessionID:             session.ID.String(),
+		AccessToken:           accessToken,
+		AccessTokenExpiresAt:  accessPayload.ExpiredAt,
+		RefreshToken:          refreshToken,
+		RefreshTokenExpiresAt: refreshPayload.ExpiredAt,
 		User: userRes{
 			Username:  user.Username,
 			Fullname:  user.Fullname,

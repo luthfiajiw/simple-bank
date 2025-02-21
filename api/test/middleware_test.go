@@ -21,8 +21,9 @@ func addAuth(
 	username string,
 	durarion time.Duration,
 ) {
-	token, err := tokenMaker.CreateToken(username, durarion)
+	token, payload, err := tokenMaker.CreateToken(username, durarion)
 	require.NoError(t, err)
+	require.NotEmpty(t, payload)
 
 	authHeader := fmt.Sprintf("%s %s", authType, token)
 	req.Header.Set(api.AuthorizationHeaderKey, authHeader)
